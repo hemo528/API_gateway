@@ -1,0 +1,150 @@
+{% extends "layout.html" %}
+
+{% block title %}使用统计{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">使用统计</h1>
+            <p class="page-subtitle">查看您的API使用历史和消耗情况</p>
+        </div>
+        <div class="tabs" style="margin-bottom: 0; border-bottom: none;">
+            <a href="{{ url_for('api.usage', days=7) }}" class="tab {% if days == 7 %}active{% endif %}">最近7天</a>
+            <a href="{{ url_for('api.usage', days=30) }}" class="tab {% if days == 30 %}active{% endif %}">最近30天</a>
+        </div>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <div class="stat-icon tokens">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+        </div>
+        <div class="stat-value">
+            {% set total = daily_usage.values()|sum(attribute='tokens') %}
+            {{ "{:,}".format(total) }}
+        </div>
+        <div class="stat-label">{{ days }}天总Token</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <div class="stat-icon requests">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </div>
+        </div>
+        <div class="stat-value">
+            {% set total = daily_usage.values()|sum(attribute='requests') %}
+            {{ total }}
+        </div>
+        <div class="stat-label">{{ days }}天总请求</div>
+    </div>
+</div>
+
+{% if daily_usage %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h3 class="card-title">每日使用趋势</h3>
+    </div>
+    <div class="card-body">
+        <div class="chart-bars">
+            {% for date, data in daily_usage|sort %}
+            {% set max_tokens = daily_usage.values()|max(attribute='tokens')|attr('tokens') %}
+            {% set height = (data.tokens / max_tokens * 200) if max_tokens > 0 else 0 %}
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                <div class="chart-bar" style="height: {{ height }}px;" title="{{ date }}: {{ data.tokens }} tokens"></div>
+                <span class="text-muted" style="font-size: 11px;">{{ date[5:] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h3 class="card-title">每日详情</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="usage-table">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>Token消耗</th>
+                    <th>请求数</th>
+                    <th>提供商分布</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for date, data in daily_usage|sort|reverse %}
+                <tr>
+                    <td>{{ date }}</td>
+                    <td><strong>{{ "{:,}".format(data.tokens) }}</strong></td>
+                    <td>{{ data.requests }}</td>
+                    <td>
+                        {% for provider, stats in data.providers.items() %}
+                        <span class="badge badge-primary" style="margin-right: 4px;">
+                            {{ providers[provider].name if provider in providers else provider }}: {{ "{:,}".format(stats.tokens) }}
+                        </span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">请求记录</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        {% if records %}
+        <table class="usage-table">
+            <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>提供商</th>
+                    <th>模型</th>
+                    <th>Prompt</th>
+                    <th>Completion</th>
+                    <th>Total</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr>
+                    <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ providers[record.provider].name if record.provider in providers else record.provider }}</td>
+                    <td>{{ record.model or '-' }}</td>
+                    <td>{{ record.prompt_tokens }}</td>
+                    <td>{{ record.completion_tokens }}</td>
+                    <td><strong>{{ record.total_tokens }}</strong></td>
+                    <td>
+                        {% if record.status == 'success' %}
+                        <span class="badge badge-success">成功</span>
+                        {% else %}
+                        <span class="badge badge-danger">失败</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <h3 class="empty-state-title">暂无使用记录</h3>
+            <p class="empty-state-text">开始使用API后将显示使用统计</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

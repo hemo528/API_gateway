@@ -1,0 +1,213 @@
+{% extends "layout.html" %}
+
+{% block title %}API Keys管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">API Keys 管理</h1>
+            <p class="page-subtitle">管理您的大模型API密钥，支持多提供商</p>
+        </div>
+        <button class="btn btn-primary" onclick="showAddModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加API Key
+        </button>
+    </div>
+</div>
+
+{% if api_keys %}
+<div class="api-list">
+    {% for key in api_keys %}
+    <div class="api-card">
+        <div class="api-card-header">
+            <div class="api-info">
+                <div class="api-provider-icon {{ key.provider }}">{{ key.provider[0].upper() }}</div>
+                <div>
+                    <div class="api-name">{{ key.name }}</div>
+                    <div class="api-provider">{{ providers[key.provider].name if key.provider in providers else key.provider }}</div>
+                </div>
+            </div>
+            <div class="api-actions">
+                {% if key.is_free %}
+                <span class="provider-badge free">免费</span>
+                {% else %}
+                <span class="provider-badge paid">付费</span>
+                {% endif %}
+                <span class="api-status {{ 'active' if key.is_active else 'inactive' }}">
+                    <span class="api-status-dot"></span>
+                    {{ '启用' if key.is_active else '停用' }}
+                </span>
+            </div>
+        </div>
+        
+        <div class="api-details">
+            <div class="api-detail">
+                <span class="api-detail-label">API Key</span>
+                <span class="api-detail-value text-muted">{{ key.api_key[:20] }}...{{ key.api_key[-4:] }}</span>
+            </div>
+            <div class="api-detail">
+                <span class="api-detail-label">模型</span>
+                <span class="api-detail-value">{{ key.model or '默认' }}</span>
+            </div>
+            <div class="api-detail">
+                <span class="api-detail-label">今日已用</span>
+                <span class="api-detail-value">
+                    {{ "{:,}".format(key.used_tokens_today) }}
+                    {% if key.max_tokens_per_day %}
+                    / {{ "{:,}".format(key.max_tokens_per_day) }}
+                    {% else %}
+                    / 无限制
+                    {% endif %}
+                </span>
+            </div>
+            {% if key.max_tokens_per_day %}
+            <div class="api-detail">
+                <span class="api-detail-label">使用进度</span>
+                {% set percent = (key.used_tokens_today / key.max_tokens_per_day * 100) if key.max_tokens_per_day else 0 %}
+                <div class="progress-bar">
+                    <div class="progress-fill {{ 'danger' if percent > 90 else 'warning' if percent > 70 else 'success' }}" style="width: {{ percent }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+            <div class="api-detail">
+                <span class="api-detail-label">优先级</span>
+                <span class="api-detail-value">{{ key.priority }}</span>
+            </div>
+            <div class="api-detail">
+                <span class="api-detail-label">最后使用</span>
+                <span class="api-detail-value">{{ key.last_used_at.strftime('%Y-%m-%d %H:%M') if key.last_used_at else '从未使用' }}</span>
+            </div>
+        </div>
+        
+        <div class="d-flex gap-2 mt-3" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <form method="POST" action="{{ url_for('api.toggle_api_key', key_id=key.id) }}" style="display: inline;">
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    {{ '停用' if key.is_active else '启用' }}
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('api.test_api_key', key_id=key.id) }}" style="display: inline;">
+                <button type="submit" class="btn btn-secondary btn-sm">测试连接</button>
+            </form>
+            <form method="POST" action="{{ url_for('api.delete_api_key', key_id=key.id) }}" style="display: inline;" onsubmit="return confirm('确定要删除这个API Key吗？');">
+                <button type="submit" class="btn btn-danger btn-sm">删除</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            </div>
+            <h3 class="empty-state-title">暂无API Key</h3>
+            <p class="empty-state-text">添加您的第一个API Key，开始使用统一接口</p>
+            <button class="btn btn-primary" onclick="showAddModal()">添加API Key</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="modal" id="addApiKeyModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">添加API Key</h3>
+            <button class="modal-close" onclick="hideAddModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('api.add_api_key') }}">
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label for="name">API名称 *</label>
+                    <input type="text" id="name" name="name" placeholder="例如：我的OpenAI" required>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="provider">提供商 *</label>
+                    <select id="provider" name="provider" required onchange="updateProviderDefaults()">
+                        <option value="">选择提供商</option>
+                        {% for key, provider in providers.items() %}
+                        <option value="{{ key }}">{{ provider.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="api_key">API Key *</label>
+                    <input type="text" id="api_key" name="api_key" placeholder="sk-..." required>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="api_secret">API Secret (可选)</label>
+                    <input type="text" id="api_secret" name="api_secret" placeholder="某些提供商需要">
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="base_url">Base URL (可选)</label>
+                    <input type="text" id="base_url" name="base_url" placeholder="留空使用默认值">
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="model">模型 (可选)</label>
+                    <input type="text" id="model" name="model" placeholder="留空使用默认值">
+                </div>
+                
+                <div class="form-row mb-3">
+                    <div class="form-group">
+                        <label for="max_tokens_per_day">每日Token限制 (可选)</label>
+                        <input type="number" id="max_tokens_per_day" name="max_tokens_per_day" placeholder="不限制留空">
+                    </div>
+                    <div class="form-group">
+                        <label for="priority">优先级</label>
+                        <input type="number" id="priority" name="priority" value="0" min="0">
+                    </div>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="is_free" name="is_free">
+                    <label for="is_free">这是免费API (免费API会优先使用，用完自动切换)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideAddModal()">取消</button>
+                <button type="submit" class="btn btn-primary">添加</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const providerDefaults = {{ providers | tojson }};
+
+function showAddModal() {
+    document.getElementById('addApiKeyModal').classList.add('show');
+}
+
+function hideAddModal() {
+    document.getElementById('addApiKeyModal').classList.remove('show');
+}
+
+function updateProviderDefaults() {
+    const provider = document.getElementById('provider').value;
+    if (provider && providerDefaults[provider]) {
+        const defaults = providerDefaults[provider];
+        if (!document.getElementById('model').value) {
+            document.getElementById('model').placeholder = defaults.default_model || '留空使用默认值';
+        }
+        if (!document.getElementById('base_url').value) {
+            document.getElementById('base_url').placeholder = defaults.default_url || '留空使用默认值';
+        }
+    }
+}
+
+document.getElementById('addApiKeyModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hideAddModal();
+    }
+});
+</script>
+{% endblock %}

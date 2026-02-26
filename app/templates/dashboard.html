@@ -1,0 +1,205 @@
+{% extends "layout.html" %}
+
+{% block title %}仪表盘 - API网关平台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">仪表盘</h1>
+    <p class="page-subtitle">欢迎回来，{{ current_user.username }}！以下是您的API使用概览。</p>
+    <div class="mt-2">
+        <div class="api-card" style="max-width: 600px;">
+            <div class="api-card-header">
+                <div class="api-info">
+                    <div class="api-provider-icon openai">🔑</div>
+                    <div>
+                        <div class="api-name">您的API Key</div>
+                        <div class="api-provider">用于调用统一接口</div>
+                    </div>
+                </div>
+            </div>
+            <div class="api-details">
+                <div class="api-detail">
+                    <span class="api-detail-label">API Key</span>
+                    <span class="api-detail-value"><code>{{ user_api_key }}</code></span>
+                </div>
+                <div class="api-detail">
+                    <span class="api-detail-label">使用方式</span>
+                    <span class="api-detail-value">在请求头中添加 <code>Authorization: Bearer {{ user_api_key }}</code></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <div class="stat-icon tokens">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ "{:,}".format(total_tokens_today) }}</div>
+        <div class="stat-label">今日Token消耗</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <div class="stat-icon requests">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ total_requests_today }}</div>
+        <div class="stat-label">今日请求数</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <div class="stat-icon success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ success_requests }}</div>
+        <div class="stat-label">成功请求</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <div class="stat-icon failed">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ failed_requests }}</div>
+        <div class="stat-label">失败请求</div>
+    </div>
+</div>
+
+{% if provider_stats %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h3 class="card-title">各提供商使用情况</h3>
+    </div>
+    <div class="card-body">
+        <div class="api-details">
+            {% for provider, stats in provider_stats.items() %}
+            <div class="api-detail">
+                <span class="api-detail-label">{{ providers[provider].name if provider in providers else provider }}</span>
+                <span class="api-detail-value">
+                    <span class="badge badge-primary">{{ stats.requests }} 请求</span>
+                    <span class="text-muted">|</span>
+                    <span>{{ "{:,}".format(stats.tokens) }} tokens</span>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">我的API Keys</h3>
+        <a href="{{ url_for('api.api_keys') }}" class="btn btn-primary btn-sm">管理API Keys</a>
+    </div>
+    <div class="card-body">
+        {% if api_keys %}
+        <div class="api-list">
+            {% for key in api_keys %}
+            <div class="api-card">
+                <div class="api-card-header">
+                    <div class="api-info">
+                        <div class="api-provider-icon {{ key.provider }}">{{ key.provider[0].upper() }}</div>
+                        <div>
+                            <div class="api-name">{{ key.name }}</div>
+                            <div class="api-provider">{{ providers[key.provider].name if key.provider in providers else key.provider }}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        {% if key.is_free %}
+                        <span class="provider-badge free">免费</span>
+                        {% else %}
+                        <span class="provider-badge paid">付费</span>
+                        {% endif %}
+                        <span class="api-status {{ 'active' if key.is_active else 'inactive' }}">
+                            <span class="api-status-dot"></span>
+                            {{ '启用' if key.is_active else '停用' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="api-details">
+                    <div class="api-detail">
+                        <span class="api-detail-label">模型</span>
+                        <span class="api-detail-value">{{ key.model or '-' }}</span>
+                    </div>
+                    <div class="api-detail">
+                        <span class="api-detail-label">今日已用</span>
+                        <span class="api-detail-value">{{ "{:,}".format(key.used_tokens_today) }} / {{ "{:,}".format(key.max_tokens_per_day) if key.max_tokens_per_day else '无限制' }}</span>
+                    </div>
+                    {% if key.max_tokens_per_day %}
+                    <div class="api-detail">
+                        <span class="api-detail-label">使用进度</span>
+                        <div class="progress-bar">
+                            {% set percent = (key.used_tokens_today / key.max_tokens_per_day * 100) if key.max_tokens_per_day else 0 %}
+                            <div class="progress-fill {{ 'danger' if percent > 90 else 'warning' if percent > 70 else 'success' }}" style="width: {{ percent }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="api-detail">
+                        <span class="api-detail-label">优先级</span>
+                        <span class="api-detail-value">{{ key.priority }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            </div>
+            <h3 class="empty-state-title">暂无API Key</h3>
+            <p class="empty-state-text">添加您的第一个API Key，开始使用统一接口</p>
+            <a href="{{ url_for('api.api_keys') }}" class="btn btn-primary">添加API Key</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if recent_records %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h3 class="card-title">最近请求</h3>
+        <a href="{{ url_for('api.usage') }}" class="btn btn-secondary btn-sm">查看详情</a>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="usage-table">
+            <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>提供商</th>
+                    <th>模型</th>
+                    <th>Token</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in recent_records %}
+                <tr>
+                    <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{{ providers[record.provider].name if record.provider in providers else record.provider }}</td>
+                    <td>{{ record.model or '-' }}</td>
+                    <td>{{ record.total_tokens }}</td>
+                    <td>
+                        {% if record.status == 'success' %}
+                        <span class="badge badge-success">成功</span>
+                        {% else %}
+                        <span class="badge badge-danger">失败</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
